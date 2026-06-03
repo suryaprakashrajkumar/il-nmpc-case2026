@@ -1,0 +1,562 @@
+%\documentclass{ieeeconf}
+\documentclass[letterpaper, 10 pt, conference]{ieeeconf}
+
+\usepackage{cite}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\usepackage{graphicx}
+\usepackage{textcomp}
+\usepackage{url}
+\usepackage{hyperref}
+\usepackage{multirow}
+\usepackage{booktabs}
+\usepackage{mathtools}
+\usepackage{balance}
+\DeclarePairedDelimiter{\ceil}{\lceil}{\rceil}
+
+\def\showtodo{0}
+
+%ADDED MANUALLY
+% \setlength{\marginparwidth}{2cm}
+% \usepackage{todonotes}
+%\usepackage[disable]{todonotes}
+\usepackage{tabularx}
+\usepackage{xcolor}
+\newtheorem{theorem}{Theorem}
+\newtheorem{lemma}{Lemma}
+\newtheorem{definition}{Definition}
+\newtheorem{proposition}{Proposition}
+\newtheorem{property}{Property}
+\newtheorem{corollary}{Corollary}
+\newtheorem{assumption}{Assumption}
+\newtheorem{statement}{Statement}
+\newtheorem{problem}{Problem}
+\newtheorem{remark}{\textbf{Remark}}
+
+\newcommand{\Ef}{{\mathcal E}}
+\newcommand{\hax}{{\hat{x}}}
+\newcommand{\Cf}{{\mathcal C}}
+\newcommand{\Bf}{{\mathcal B}}
+\newcommand{\Wf}{{\mathcal W}}
+\newcommand{\Af}{{\mathcal A}}
+\newcommand{\Vf}{{\mathcal V}}
+\newcommand{\Df}{{\mathcal D}}
+\newcommand{\Xf}{{\mathcal X}}
+\newcommand{\rr}{\mathop{{\rm I}\mskip-4.0mu{\rm R}}\nolimits}
+\newcommand{\ee}{\mathop{{\rm I}\mskip-4.0mu{\rm E}}\nolimits}
+\newcommand{\Z}{\mathop{{\rm Z}\mskip-7.0mu{\rm Z}}\nolimits}
+
+\newcommand*\ruleline[1]{\par\noindent\raisebox{.8ex}{\makebox[\linewidth]{\hrulefill\hspace{1ex}\raisebox{-.8ex}{#1}\hspace{1ex}\hrulefill}}}
+
+\def\BibTeX{{\rm B\kern-.05em{\sc i\kern-.025em b}\kern-.08em
+T\kern-.1667em\lower.7ex\hbox{E}\kern-.125emX}}
+
+\IEEEoverridecommandlockouts
+
+\begin{document}
+\title{A Real-Time Affordable Predictive Trajectory Tracking Controller for Differential Drive Robots via Imitation Learning}
+\author{Suryaprakash Rajkumar, and Walter Lucia
+\thanks{This work was supported by the Natural Sciences and Engineering Research Council of Canada (NSERC) and Fonds de recherche du Québec (FRQNT).}
+\thanks{Suryaprakash Rajkumar, and Walter Lucia are with the Concordia Institute for Information Systems Engineering (CIISE), Concordia University, Montreal, QC, H3G 1M8, CANADA, {\tt\small \{suryaprakash.rajkumar walter.lucia\}@concordia.ca}}
+}
+
+\maketitle
+\begin{abstract}
+  Nonlinear Model Predictive Control (NMPC) achieves high-accuracy trajectory tracking for mobile robots but is often too computationally demanding for resource-constrained platforms. We present a learning-based predictive tracking controller that imitates an expert NMPC policy to achieve real-time performance on differential-drive robots. Our approach combines (a) state-perturbation augmentation with relative-error as a state to enrich the expert dataset and (b) a lightweight neural architecture using 1-D convolutions with residual blocks and a physics-aware loss informed by robot kinematics. Expert state–action pairs are collected in a high-fidelity, physics-enabled simulator. Finally, we evaluate the resulting policy in both simulation and real-time using a Quanser QBOT differential-drive platform, demonstrating comparable tracking accuracy to NMPC while significantly reducing computation time.
+\end{abstract}
+
+\section{Introduction}
+Achieving autonomy in mobile robots requires integration of perception, decision-making, and control. Among various control strategies, Model Predictive Control (MPC) has emerged as an effective method for trajectory tracking due to its ability to anticipate future states and optimize control actions over a finite horizon \cite{MPC_robotica}. This makes MPC particularly attractive for dynamic and uncertain environments. However, implementing MPC at high prediction horizons incurs substantial computational cost because a constrained multivariable optimization problem must be solved at every control step \cite{mayne2014model}.  This may hinder its real-time applicability in scenarios with strict latency requirements or limited onboard processing power, a common constraint in mobile robotic systems.
+
+
+Most existing work on MPC for mobile robots seeks to reduce computational complexity by introducing simplifying assumptions, such as linearizing the system dynamics to obtain a convex optimization problem or shortening the prediction horizon. While these strategies can lower the computational burden, they may also affect the tracking performance and robustness of the controller \cite{gros2020linear}. As a result, many practical implementations of MPC-based control for mobile robots rely on off-board computation to meet real-time requirements (see \cite{MPC_robotica} and references therein).
+
+Driven by recent advances in machine learning and artificial intelligence, data-driven control strategies have attracted considerable attention. Methods such as Imitation Learning (IL) and Reinforcement Learning (RL) show promise for overcoming key limitations of traditional control, notably by improving computational efficiency and enhancing adaptability to changing environments \cite{brunke2022safe,imitation_survey_2}. IL has been successfully applied in domains such as autonomous navigation \cite{bc_nav_5,BC_nav_1,BC_nav_2,bc_nav_3,bc_nav_4,bc_nav_6} and robotic manipulation \cite{BC_arm_1,BC_arm_2,BC_arm_3,BC_arm_4}.
+
+A common challenge in IL is covariate shift, where the distribution of states encountered by the learned policy $\tilde{\pi}$ during deployment differs from that of the expert demonstrations, i.e. $d^{\tilde{\pi}}(s) \neq d^{\pi^*}(s)$, where $d(\cdot)$ denotes the state distribution. This discrepancy arises because small errors in the learned policy compound over time, driving the agent into states that are underrepresented or absent in the training data, ultimately degrading closed-loop performance \cite{dagger}.
+
+Robustness to covariate shift can be promoted by augmenting the training distribution to better cover the state space regions likely to be encountered during deployment, reducing the discrepancy between the training and deployment domains. Common methods include Dataset Aggregation (DAgger) \cite{dagger} and Domain Randomization (DR) \cite{peng2018sim}.   Although effective, these approaches require a large number of demonstrations or environment interactions to adequately cover the space of possible model errors and disturbances encountered in the target domain, placing a significant burden on data collection and limiting the practical scalability of the learned policy (See \cite{tagliabue2024efficient} and the references therein).
+
+Several recent studies have explored the use of imitation learning (IL) to approximate, and in some cases replace, Model Predictive Control (MPC) policies in robotic control systems \cite{IL_MPC_1,IL_MPC_2,IL_MPC_3,IL_MPC_4}. These works demonstrate that learned policies can serve as computationally efficient surrogates for online optimization. Most existing studies consider aerial or legged robotic platforms, whose dynamics differ from those of nonholonomic ground robots. Here, we consider differential-drive mobile robots and investigate the use of IL to approximate the behavior of a NMPC controller for trajectory tracking.
+
+To this end, we leverage the computational efficiency of IL to develop a predictive tracking controller for mobile robots. The proposed approach imitates an expert NMPC policy using a single dataset collection phase performed in a high-fidelity simulator and augmented with state perturbations. This strategy improves robustness to covariate shift without requiring repeated expert interactions or additional environment rollouts. The resulting policy enables real-time trajectory tracking on differential-drive robots while reducing the computational cost associated with online optimization, making it suitable for deployment on resource-constrained robotic platforms.
+%
+%
+\subsection{Paper Contribution}
+The main contributions of this paper are summarized as follows:
+
+\begin{itemize}
+  \item We propose a novel imitation learning-based predictive trajectory tracking controller for differential-drive robots that closely mimics an expert NMPC while drastically reducing computational overhead.
+  \item We introduce a dataset collection strategy in a high-fidelity physics-enabled simulator, augmented with state perturbations and relative-error rollouts, to improve robustness and mitigate covariate shift.
+  \item We design a physics-aware loss function that incorporates the robot’s kinematics, ensuring the learned policy respects System dynamics.
+  \item We validate the approach through simulations and real-time experiments on a differential-drive platform, demonstrating accurate trajectory tracking with high computational efficiency.
+  \item We provide an open-source implementation including datasets, training code, and real-time control on a differential-drive robot; the repository will be released upon acceptance.
+\end{itemize}
+
+\section{Preliminaries}\label{sec:prelims}
+\subsection{Markov Decision Process and Imitation Learning}\label{sec:MDP}
+In the context of trajectory tracking, we formulate imitation learning as a Markov Decision Process (MDP) defined by the tuple $(\mathcal{S}, \mathcal{A}, P, \pi^*)$, where $\mathcal{S}$ is the state space (e.g., robot pose and tracking error), $\mathcal{A}$ is the action space (e.g., control inputs), $P$ is the state transition function determined by the robot dynamics, and $\pi^*$ is the expert policy (e.g., NMPC). At each time step $k$, the agent observes a state $s_k \in \mathcal{S}$ and selects an action $a_k \in \mathcal{A}$ according to the expert policy $a_k = \pi^*(s_k)$.
+%
+A demonstration $\zeta$ is a trajectory consisting of state-action pairs generated by the expert:
+\begin{equation*}
+  \zeta = \{(s_0,a_0),(s_1,a_1),\dots\},
+\end{equation*}
+and a dataset of demonstrations is denoted as $\mathcal{D} = \{\zeta_1,\zeta_2,\dots\}$.
+
+\begin{definition}
+  Given a system with states $q$ and control inputs $u$, the imitation learning problem is to leverage a dataset of expert demonstrations $\mathcal{D}$, obtained from the expert policy $\pi^*$, to learn a policy $\tilde{\pi}$ that replicates the expert’s behaviour.
+\end{definition}
+
+A common approach is \textit{Behavioural Cloning}, which frames imitation learning as a supervised learning problem. The objective is to minimize the discrepancy between the expert’s actions and those of the learned policy over the expert’s state distribution. Formally,
+\begin{equation}
+  \tilde{\pi} = \arg\min_{\pi} \mathbb{E}_{s \sim \mathcal{D}} \left[ \lVert \pi^*(s) - \pi(s) \rVert_2^2 \right],
+\end{equation}
+where $\lVert \cdot \rVert_2^2$ denotes the $L_2$ norm. This ensures that the learned policy $\tilde{\pi}$ closely matches the expert’s behaviour along the demonstrated trajectories.
+
+\subsection{Robot Modeling} \label{sec:robot-modeling}
+Let's consider a differential drive robot that uses two independently controlled wheels on a single axis, along with caster wheels for support. This design makes it a non-holonomic class of system.
+
+% \begin{figure}[!h]
+%   \centering
+%   \includegraphics[width=0.75\linewidth]{Figure/vehicle-models}
+%   \caption{\textit{(a)} differential-drive, \textit{(b)} unicycle.}
+%   \label{fig:vehicles-model}
+% \end{figure}
+
+By discretizing the continuous-time kinematic model of the robot using a sampling time $T_s>0$ and the forward Euler method, we obtain the following discrete-time model:
+\begin{equation}\label{eq:diffdrive-discrete}
+  \begin{array}{c}
+    x(k+1)=x(k)+T_s\frac{R}{2}\left(\omega_R(k)+\omega_L(k)\right)\cos\theta(k) + w_x(k)\\
+    y(k+1)=y(k)+T_s\frac{R}{2}\left(\omega_R(k)+\omega_L(k)\right)\sin \theta(k) + w_y(k)\\
+    \theta(k+1)=\theta(k)+T_s\frac{R}{D}(\omega_R(k)-\omega_L(k)) + w_{\theta}(k)
+  \end{array}
+\end{equation}
+% where $k\in \Z_+$ and $T_s>0$ is the sampling time for the robot. $q(k)=[x(k),y(k),\theta(k)]^T$ is the state vector belonging to $SE(2)$ with $n_s=3$ states. The differential drive model can be recast into a unicycle model with the following input transformation.
+with $k\in \Z_+:=\{0,1\ldots\}$ a discrete-time index where $R$ and $D$ are the wheel radius and  axis length, respectively. The state or pose vector is $q(k)=[x(k),y(k),\theta(k)]^T \in \text{SE}(2)$ while the control inputs are the right ($\omega_R$) and left ($\omega_L$) wheels' angular velocity . The angular velocities of the differential drive robot is subject to the following constraint
+%
+\begin{equation}\label{eq:diff-drive-constraints}
+  \begin{array}{c}
+    \mathcal{U}_d=\{[\omega_R,\omega_L]^T\in\rr^2:\, H_d\left[\omega_R,\omega_L \right]^T\leq \bf{1}\},  \\
+    H_d=\left[
+      \begin{array}{cccc}
+        \frac{-1}{\overline{\Omega}} & 0 & \frac{1}{\overline{\Omega}}&0\\
+        0 & \frac{-1}{\overline{\Omega}} & 0 &\frac{1}{\overline{\Omega}} \\
+    \end{array}\right]^T
+  \end{array}
+\end{equation}
+%
+with $\overline{\Omega}$ the maximum angular velocity.
+
+The differential drive model can be recast into a unicycle model with the following input transformation
+%
+\begin{equation}\label{eq:diff-uni-transformation}
+  \left[
+    \begin{array}{c}
+      v(k)\\
+      \omega(k)
+    \end{array}
+  \right]
+  =
+  T
+  \left[
+    \begin{array}{c}
+      \omega_R(k)\\
+      \omega_L(k)
+    \end{array}
+  \right],\quad T=\left[
+    \begin{array}{cc}
+      \frac{r}{2}&\,\,\,\,\frac{r}{2}\\
+      \frac{r}{D}&-\frac{r}{D}
+    \end{array}
+  \right]
+\end{equation}
+%
+with $v$ and $\omega$ the linear and angular speeds of the unicycle, obtaining:
+%
+\begin{equation}\label{eq:unicycle-disrete}
+  \begin{array}{rcl}
+    x(k+1)&=&x(k)+T_s v(k)\cos \theta(k) + w_x(k)\\
+    y(k+1)&=&y(k)+T_s v(k)\sin \theta(k)+ w_y(k)\\
+    \theta(k+1)&=&\theta(k)+T_s\omega(k)+ w_{\theta}(k)
+  \end{array}
+\end{equation}
+%
+For simplicity, the model of the robot is referred to as
+\begin{equation*}
+  q(k+1) = f_d(q(k),u(k)) + w_d(k)
+\end{equation*}
+where $f_d$ is the nominal system model and $w_d$ is the unmodeled dynamics on the system.  Constraints in \eqref{eq:diff-drive-constraints} is transformed into
+\begin{equation}\label{eq:input-constraint-unicycle}
+  \mathcal{U}_u\!=\!\{[v,\omega]^T\in\rr^2\!: H_u\left[v,\omega \right]^T\leq \mathbf{1}\},\, H_u=H_dT^{-1}
+\end{equation}
+
+
+Let us consider a bounded smooth 2D-trajectory described with $x_r(t), y_r(k)$ Cartesian coordinates and $\dot{x}_r(t), \dot{y}_r(k)$ velocity.  The reference orientation is defined as
+\begin{equation}\label{eq:thetar}
+  \theta_r(k) = \arctan_2(\dot{y}_r(k),\dot{x}_r(k))
+\end{equation}
+Reference trajectory is defined as $q_r(k) = [x_r(k), y_r(k),\theta_r(k)]^T$ where $k\in\rr^+$
+\begin{remark}
+  The reference trajectory must be realizable by the robot, i.e. $[v_r(t),\omega_r(t)]^T\in\mathcal{U}_u$, where $v_r(t),\omega_r(t)$ is given by
+  \begin{equation}
+    \left[
+      \begin{array}{c}
+        v_r(t) \\
+        \omega_r(t)
+    \end{array}\right]=\left[
+      \begin{array}{c}
+        \sqrt{\dot{x}_r(t)^2+\dot{y}_r(t)^2} \\
+        \frac{\dot{y}_r(t) \dot{x}_r(t)-\ddot{x}_r(t) \dot{y}_r(t)}{\dot{x}_r(t)^2+y_r(t)^2}
+    \end{array}\right]
+  \end{equation}
+\end{remark}
+%
+\subsection{Model Predictive Control}\label{sec:MPC}
+A nonlinear model predictive control constrained on the inputs with prediction horizon $N$ for the differential drive robot is defined by solving the following optimization problem,
+
+\begin{equation}\label{eq:NMPC_op}
+  \begin{gathered}
+    \mathcal{U} = \underset{\mathcal{U}} {\arg \min } J_N(k, q(k), q_r(k), u(k), k) \text { s.t. } \\
+    q(k+i+1 \mid k)=f_d(q(k+i \mid k), u(k+i)) \\
+    u(k+i) \in \mathcal{U}_u , \ i=0,1 \ldots N-1\\
+    \mathcal{U} = [u(k),\dots, u(k+N-1)]^T
+  \end{gathered}
+\end{equation}
+where  $\tilde{q}(k) = q(k)-q_r(k)$ is the tracking error and the Linear Quadratic cost
+\begin{equation}
+  J_N(\cdot)=\sum_{i=0}^{N} \!\tilde{q}(\cdot)^TQ \tilde{q}(\cdot)\!+\! u(\cdot)^TRu(\cdot)+ \Delta{u}(\cdot)^TP\Delta{u}(\cdot)
+\end{equation}
+where $\Delta{u}(k)=u(k)-u(k-1)$ is the change in controls over the previous step and $Q = Q^T>0, Q \in \rr_n$ ,$R = R^T >0, R \in \rr_m$ and $P= P^T >0, P \in \rr_m$ are weighing matrices for error, control and incremental control penalties respectively.
+
+At each sampling instant, only the first control input \(u(k)\) of the optimal sequence is applied, and the optimization is repeated in a receding horizon manner.
+
+\begin{remark}
+  Since the unmodeled dynamics $w_d(k)$ are unknown but bounded, and the NMPC is synthesized based on the nominal system, the closed-loop tracking error $\tilde{q}(k) = q(k) - q_r(k)$ is guaranteed to remain uniformly ultimately bounded for all $k > 0$.
+\end{remark}
+
+\begin{remark}
+  Although optimization \eqref{eq:NMPC_op} can achieve excellent tracking performance, it imposes a substantial computational burden, particularly for large prediction horizons. As a result, deploying it in real-time on mobile robots can be challenging for higher values of $N$. To maintain feasibility, the prediction horizon is often shortened, potentially compromising tracking accuracy \cite{NMPC_compuational}.
+\end{remark}
+
+\subsection{Problem Formulation}
+Consider a differential drive robot with dynamics described in Sec.~\ref{sec:robot-modeling}, a desired trajectory given in Sec.~\ref{sec:traj}, and the NMPC  expert policy defined in Sec.~\ref{sec:MPC}.
+
+\begin{problem}
+  Design a computationally efficient data driven policy $\tilde{\pi}$ such that
+  \begin{equation}
+    \tilde{\pi} = \arg\min_{\pi} \mathbb{E}_{s \sim \mathcal{D} } \left[  \left\lVert \pi^*(s)- \pi(s) \right\rVert_2 \right]
+  \end{equation}
+  ensures that the tracking error $\tilde{q}(k) = q(k) - q_r(k)$ remains bounded for all $k > 0$ and $\tilde{\pi}\in \mathcal{U}_d$
+  where, $\mathcal{D}$ is the dataset of expert state-action pairs.
+\end{problem}
+
+\begin{assumption}
+  The NMPC with high prediction horizon $N$ cannot be computed in real time; that is, the time required to compute the NMPC solution exceeds the available sampling interval $T_s$.
+\end{assumption}
+
+\section{Proposed Solution}
+\begin{figure*}[h]
+  \centering
+  \includegraphics[width=1\linewidth]{Figure/systemarch_updated_low.eps}
+  \caption{Proposed imitation learning strategy architecture: (1) Overview of expert policy rollouts, (2) Overview of offline MLP policy training, (3) Overview of implementation of trained policy}
+  \label{fig:sys_arch}
+\end{figure*}
+\subsection{Trajectory Definition}\label{sec:traj}
+
+\subsection{Expert Policy Rollouts for Dataset Generation}
+To generate a high-quality dataset for training the imitation learning policy, we utilize a digital twin of the differential drive robot within a physics-enabled simulation environment, which provides a high-fidelity simulation with a Real World Time (RWT). This approach allows us to accurately capture the robot's dynamics and interactions with its environment, providing realistic state-action pairs for training. By slowing down the simulation clock (Realtime-Factor (RTF)\footnote{RTF is defined as the ratio between the simulation time and the RWT. For example, an RTF of 0.5 means that the simulation runs at half the speed of real-world time, allowing more computational resources to be allocated for complex calculations like NMPC.}), we accommodate the computational demands of the NMPC for high prediction horizons, ensuring accurate expert action pairs.
+%
+To mitigate covariate shift and improve diversity of the dataset, we introduce a state perturbation augmentation strategy inspired by DART\cite{dart}. Unlike DART, which injects noise into the expert's actions, we apply perturbations directly to the robot's pose during data collection.
+
+Let $\{q_r(k)\}_{k=0}^{k_f}$ denote a nominal reference trajectory. We perturb the robot's pose at each time step $k$ as follows:
+\begin{equation}
+  \bar{q}(k) = q(k) + \epsilon(k), \quad \epsilon(k) \in \mathcal{N}(0, \Sigma_q), \Sigma_q = \sigma_q I
+\end{equation}
+where $\mathcal{N}(0, \Sigma_q)$ is a Gaussian distribution with mean $0$ and covariance $\Sigma_q$, and $\sigma_q$ is a tunable parameter that controls the extent of the perturbation.
+This approach simulates wider state distributions, helping the learned policy generalize better to unseen scenarios.
+%
+Additionally, since the state distribution is for the robot's pose and the reference is in $\rr^2$, we define a relative error-based state representation to enhance the dataset diversity further. The relative error state vector at time step $k$ is defined as
+\begin{equation}\label{eq:relative_error}
+  e(k+i \mid k) = q(k)-q_r(k+i \mid k), \forall i=0,\dots,N-1
+\end{equation}
+where $q_r(k+i \mid k)$ is the reference pose at time step $k+i$ predicted at time step $k$. The state and action representation for the imitation learning policy is then constructed as a sequence of relative errors over the prediction horizon:
+\begin{equation}
+  \label{eq:state_action_representation}
+  \begin{array}{c}
+    s_k = [e(k \mid k),\dots, e(k+N-1 \mid k)]^T \\
+    a_k = [u(k\mid k), \dots, u(k+N-1\mid k)]^T
+  \end{array}
+\end{equation}
+This representation captures the robot's deviation from the reference trajectory over the prediction horizon, providing a rich context for the policy to learn from. Additionally, the robot's orientation information is also stored (to be used in the physics-aware loss function). The expert demonstrations collected by rolling out the expert policy in the physics-enabled simulator are summarized in Alg. \ref{alg:Dataset_collection}.
+\begin{algorithm}[!ht]
+  \caption{Expert Policy Rollouts}\label{alg:Dataset_collection}
+  \vspace{0.1cm}
+  \begin{algorithmic}[1]
+    \State Measure $q(k)=[x(k),y(k),\theta(k)]^T$ \label{alg1:step1}
+    \If{state perturbation augmentation is enabled}
+    \State Sample $\epsilon(k) \sim \mathcal{N}(0, \Sigma_q)$
+    \State $q(k) \gets q(k) + \epsilon(k)$
+    \EndIf
+    \State Compute $\mathcal{U}$ using the expert policy $\pi^*$ via~\eqref{eq:NMPC_op}
+    \State Store $(s_k, a_k, \theta_k)$
+    \State Apply $u(k)$ to the robot, go to \ref{alg1:step1}
+  \end{algorithmic}
+\end{algorithm}
+
+\begin{remark}
+  To enhance generalization, multiple rollout experiments should be conducted over a diverse set of reference trajectories $q_r(k)$ both with and without the proposed state perturbation augmentation. This approach increases the coverage of state-action pairs, aligns the training distribution more closely with that of the expert, and reduces covariate shift.
+\end{remark}
+
+\subsection{Policy Network Architecture}
+\label{sec:policy-network}
+To learn the policy, we design a deep neural network that combines temporal convolutional layers with residual fully connected blocks to capture both local and global dependencies in the input sequence. The overall architecture is illustrated in Fig.~\ref{fig:pose_shift}. The proposed architecture integrates a temporal convolutional front-end with deep residual fully connected layers, providing sufficient representational capacity to approximate complex nonlinear mappings from sequences of relative error states to control action sequences. This design is particularly suitable for learning policies for nonlinear, nonholonomic robotic platforms (e.g., differential-drive mobile robots), as it captures both local temporal dependencies and broader contextual relationships essential for accurate predictive control.
+
+The input sequence is first processed by three 1D convolutional layers, each followed by a LeakyReLU activation, to extract local temporal features. The resulting feature maps are passed through a max-pooling operation and subsequently flattened. The flattened representation is mapped through a Fully Connected (FC) layer to reduce dimensionality before entering a stack of three residual blocks. Each residual block consists of an FC layer with LeakyReLU activations and a skip connection that preserves gradient flow. The outputs of the residual blocks are further processed by an additional FC layer with LeakyReLU activations. Finally, the network produces the control output through a linear FC layer. LeakyReLU is adopted throughout to mitigate vanishing gradients and improve training stability.
+
+\begin{figure}[!ht]
+  \centering
+  \includegraphics[width=1\linewidth]{Figure/Network_up}
+  \caption{Network architecture of MLP network used in the proposed IL strategy}
+  \label{fig:pose_shift}
+\end{figure}
+
+\subsection{Physics-Aware Kinematic Loss}\label{sec:phy-aware-loss}
+
+To improve the consistency of the learned policy $\tilde{\pi}$ with robot underlying kinematics, we employ a physics-aware loss function tailored to the differential-drive kinematics in Sec.~\ref{sec:robot-modeling}. Instead of directly minimizing the prediction error between the network output and the expert actions, we propagate both the predicted and target velocities through the discrete-time kinematic model to enforce physically consistent state evolution.
+
+Let the predicted and expert control sequences over a horizon $N$ be
+\begin{equation}
+  \begin{array}{c}
+    \mathbf{v}=[v_k, v_{k+1}, \dots, v_{K+N-1}]^T \\
+    \mathbf{v}^*=[v_k^*, v_{k+1}^*, \dots, v_{K+N-1}^*]^T \\
+    \boldsymbol{\omega}=[\omega_k, \omega_{k+1}, \dots, \omega_{K+N-1}]^T\\
+    \boldsymbol{\omega}^*=[\omega_k^*, \omega_{k+1}^*, \dots, \omega_{K+N-1}^*]^T\\
+  \end{array}
+\end{equation}
+Notation $(\cdot)^*$ represents expert values.
+
+Starting from the initial orientation $\theta_k$ which is stored in the demonstration dataset $\zeta_i$, the predicted and expert orientations evolve as
+\begin{equation}
+  \begin{array}{c}
+    \boldsymbol{\theta}=\{\theta_k,\dots,\theta_{k+N-1}\},\theta_{k+i+1}=\theta_{k+i} + T_s\omega_i\\
+    \boldsymbol{\theta}^*=\{\theta_k^*,\dots,\theta_{k+N-1}^*\}, \theta_{k+i+1}^*=\theta_{k+i}^* + T_s\omega_i^*
+  \end{array}
+\end{equation}
+$\forall i \in \{0,1,\dots,N-1\}.$
+%, where $T_s$ denotes the sampling period.
+
+The corresponding incremental displacements over the prediction horizon $N$ are:
+\begin{equation}
+  \begin{aligned}
+    \Delta \mathbf{p} &=
+    \begin{bmatrix}
+      T_s v_k \cos(\theta_k) & T_s v_k \sin(\theta_k) \\
+      T_s v_{k+1} \cos(\theta_{k+1}) & T_s v_{k+1} \sin(\theta_{k+1}) \\
+      \vdots & \vdots \\
+      T_s v_{k+N-1} \cos(\theta_{k+N-1}) & T_s v_{k+N-1} \sin(\theta_{k+N-1})
+    \end{bmatrix}, \\
+    \Delta \mathbf{p}^* &=
+    \begin{bmatrix}
+      T_s v_k^* \cos(\theta_k^*) & T_s v_k^* \sin(\theta_k^*) \\
+      T_s v_{k+1}^* \cos(\theta_{k+1}^*) & T_s v_{k+1}^* \sin(\theta_{k+1}^*) \\
+      \vdots & \vdots \\
+      T_s v_{k+N-1}^* \cos(\theta_{k+N-1}^*) & T_s v_{k+N-1}^* \sin(\theta_{k+N-1}^*)
+    \end{bmatrix}.
+  \end{aligned}
+\end{equation}
+where $\Delta \mathbf{p} = [\Delta \mathbf{x}, \Delta \mathbf{y}]$ and $\Delta \mathbf{p}^* = [\Delta \mathbf{x}^*, \Delta \mathbf{y}^*]$.
+
+The physics-aware loss is then defined as
+\begin{equation}
+  \mathcal{L}_{\text{phy}} =
+  \sum_{z \in \{\Delta \mathbf{x}, \Delta \mathbf{y}, \mathbf{v}, \boldsymbol{\omega}, \boldsymbol{\theta}\}}
+  \alpha_z \,\|\mathbf{z}-\mathbf{z}^*\|_2^2.
+\end{equation}
+where $\alpha_z>0$ are weighting coefficients that balance the contributions of each term. This loss function encourages the learned policy to produce control commands that result in physically consistent state trajectories, thereby enhancing the realism and reliability of the imitation learning process.
+
+\subsection{Imitation Learning Policy Training and Deployment}
+
+The imitation learning policy is trained using the physics-aware loss function defined in Sec.~\ref{sec:phy-aware-loss}. Let the dataset of expert demonstrations be denoted as $\mathcal{D}=\{\zeta_1,\dots,\zeta_M\}$, where $M > 0$ represents the total number of demonstrations.
+
+The training process is conducted offline, leveraging the dataset $\mathcal{D}$ to optimize the parameters of the policy network. Specifically, the Adam optimizer is employed to minimize the physics-aware loss function $\mathcal{L}_{\text{phy}}$, ensuring that the learned policy adheres to the robot's underlying kinematic constraints.
+
+Once the training is complete, the learned policy is deployed on the robot in a closed-loop, real-time fashion. At each sampling instant, the current state of the robot is measured and the relative error is computed using Eq. \eqref{eq:relative_error}. This error is then provided as input to the trained policy network, which outputs a sequence of control actions over the prediction horizon.
+
+Formally, at each step $k$, the policy network $\tilde{\pi}(\cdot)$ outputs a control sequence over the prediction horizon $N_p$:
+\begin{equation}
+  \tilde{\pi}\big(s_k\big) = \big[u_{\tilde{\pi}}(k), u_{\tilde{\pi}}(k+1), \dots, u_{\tilde{\pi}}(k+N_p-1)\big],
+\end{equation}
+where only the policy's first action is used for control. To guarantee feasibility with respect to the admissible input set $\mathcal{U}_u$, the applied control is obtained by solving
+\begin{equation}
+  \bar{u}(k) = \arg\min_{u \in \mathcal{U}_u} \|u - u_{\tilde{\pi}}(k)\|^2
+\end{equation}
+
+The state is then updated at the next sampling instant, the relative error is recomputed, and the procedure is repeated in a receding-horizon fashion. This enables continuous trajectory tracking while accounting for model uncertainties and external disturbances in real-time.
+
+\section{Experiments and Results}
+
+In this section, we present the experimental setup and results to validate the performance of the proposed imitation learning-based predictive trajectory tracking controller for differential drive robots.
+
+The physics-enabled simulation environment, datasets from expert policy rollouts, codes used for training and real-time implementation of the proposed approach will be made available upon acceptance of the paper. Additionally, a video demonstration of the real-time experiments is available at \url{https://tinyurl.com/DEMO-IL-NMPC}
+
+\subsection{Robot Specification}
+The proposed approach is validated using the Quanser QBOT differential drive robot platform modeled by the unicycle kinematic model in Sec.~\ref{sec:robot-modeling}. The robot specifications are summarized in Tab. \ref{tab:robot_spec}.
+
+\begin{table}[!ht]
+  \centering
+  \caption{Robot Specifications - Quanser QBOT platform}
+  \label{tab:robot_spec}
+  \begin{tabular}{|c|c|}
+    \hline
+    \textbf{Property} & \textbf{Value} \\
+    \hline
+    Diameter & $570 \, \text{[mm]}$ \\
+    \hline
+    Height & $227 \, \text{[mm]}$ \\
+    \hline
+    Weight & $20 \, \text{[kg]}$ \\
+    \hline
+    Onboard SOM & NVIDIA Jetson Orin Nano $4\text{GB}$ \\
+    \hline
+    Power & $12.8 \, \text{[V]}$ by $2 \times 84 \, \text{[Wh]}$ batteries \\
+    \hline
+  \end{tabular}
+\end{table}
+
+The unmodeled dynamics $w_d(k)$ in Eq.\eqref{eq:unicycle-disrete} account for various real-world factors such as wheel slippage and effects of inertial forces to the high mass and operation velocity of the robot. The control inputs are constrained as per Eq. \eqref{eq:diff-drive-constraints} with $\overline{\Omega}=25\,\text{[rad/s]}$. The sampling time is set to $T_s=1/60\text{[sec]}$. The robot was interfaced using the ROS$2$ Humble framework.
+
+\subsection{Simulation Setup}
+
+The dataset collection through the expert policy is conducted on a physics-enabled simulation environment using MATLAB Simulink with the Quanser Interactive Labs Physics Engine. This environment provides a high-fidelity digital twin of the Quanser QBOT platform, accurately modelling its dynamics and environmental effects.
+The simulation experiments are performed on a workstation equipped with an Intel i9-14900K CPU, 32GB of RAM, and a 12GB NVIDIA RTX 2000 ADA GPU.
+
+\subsection{Experiment  Setup}
+The real-time experiments are conducted on a testbed consisting of the Quanser QBOT differential drive robot and a Vicon motion capture system with 12 Vicon Vero 2 cameras. The Vicon system provides precise pose measurements of the robot at a frequency of $100\,\text{[Hz]}$ and is accessed through a ROS node. Odometry is computed onboard using the robot localization package\cite{robotlocalization} with an Extended Kalman Filter (EKF) running at a frequency of $60\,\text{[Hz]}$ in ROS.
+
+To compare the performance of the proposed imitation learning policy with prediction horizon $N=20$, we implement a baseline NMPC controller with a short prediction horizon of $N=2$, which is feasible for real-time execution on the robot. The NMPC optimization problem is solved using the same Interior Point Optimization (IPOPT) method provided by \texttt{CASADI} toolbox, interfaced with ROS2. The weighting matrices are chosen as $Q = \text{diag}(10, 10, 1)$, $R = \text{diag}(0.4, 0.1)$, and $P = \text{diag}(0.04, 0.01)$. The NMPC controller is executed at a frequency of $60\,\text{[Hz]}$ on the robot's onboard SOM.
+Additionally, the Linear Model Predictive Controller in \cite{KLANCAR2007460}, hereafter denoted as LMPC, was implemented within the ROS2 Python framework, employing a prediction horizon of $N=7$,  selected to ensure real-time feasibility on the target hardware. The cost matrices were tuned to $Q = \text{diag}(7,\, 7,\, 0.25)$ and $R = \text{diag}(0.74,\, 0.04)$, and the resulting quadratic program was solved at each time step using \texttt{quadprog} library onboard the robot.
+
+\subsection{Expert Policy Rollouts for Dataset Generation}
+
+The expert policy is implemented using NMPC as defined in Sec.~\ref{sec:MPC}. The NMPC optimization problem \eqref{eq:NMPC_op} is solved using IPOPT method provided by MATLAB's fmincon solver. The weighting matrices are chosen as $Q = \text{diag}(10, 10, 1)$, $R = \text{diag}(0.4, 0.1)$, and $P = \text{diag}(0.04, 0.01)$. The prediction horizon is set to $N=20$ to ensure high tracking accuracy, which is computationally intensive for real-time execution on the robot.
+
+The simulation clock slowed down to an RTF of $0.1$, allocating enough time for the NMPC solver to converge, allowing for accurate expert action generation. The state perturbation augmentation is enabled with $\sigma_q=0.05$ to enhance dataset diversity. $M=40$ expert demonstrations are collected, with each demonstrations lasting $100\text{[sec]}$ , resulting in a total of $240,000$ state-action pairs with $60\%$ expert demonstrations with state perturbation augmentation enabled. The reference trajectories used for data collection have various initial poses, velocities and curvatures.
+
+\subsection{Policy Network Training}
+The policy network is implemented using PyTorch. The network is trained offline using the Adam optimizer with a learning rate of $0.001$ and a batch size of $256$. The training is conducted for $250$ epochs, with early stopping based on validation loss to prevent overfitting. The dataset is split into training ($80\%$) and validation ($20\%$) sets. The weighting coefficients in the physics-aware loss function are set as $\alpha_{\Delta x}=1.0$, $\alpha_{\Delta y}=1.0$, $\alpha_v=0.1$, $\alpha_{\omega}=0.1$, and $\alpha_{\theta}=0.01$. The training is performed on the same workstation used for simulation, leveraging the GPU for CUDA-accelerated training.
+
+\subsection{Test on Unseen Trajectory and Error Metrics} \label{sec:test-traj_error_index}
+
+An admissible lemniscate trajectory spanning $2.0[m]\times2.0[m]$ satisfying conditions in Sec.\ref{sec:traj} has been chosen as the reference trajectory for the robot,which is ensured not to be part of the training dataset is defined as follows:
+\begin{equation}
+  \left[
+    \begin{array}{l}
+      x_r(t) \\
+      y_r(t)
+  \end{array}\right]=\left[
+    \begin{array}{c}
+      2.0 \sin \left(\frac{t}{3.85}\right) \\
+      2.0 \sin \left(\frac{t}{7.7}\right)
+  \end{array}\right], t \in\left[0, k_f\right], k_f=48.4
+\end{equation}
+%
+Note that the proposed IL tracking controller scheme has been tested also with other trajectories not seen during training, namely a circular path and a Lissajous curve. Nevertheless, for the sake of space here we report the results only pertaining to the unseen lemniscate trajectory. Results obtained with other trajectories are shown the end of the provided video demonstration.
+
+To evaluate the tracking performance of the proposed approach and the NMPC baseline in both simulation and realtime experiments, the Mean square Error (MSE) ($1/k_f \int_{0}^{k_f}e(k)^2dk$), Integral Square Error (ISE) ($\int_{0}^{k_f}e(k)^2dk$), and Integral Absolute Error (IAE) ($\int_{0}^{k_f}|e(k)|dk$) are used as performance metrics, where $e(k) =\left\|[x(k), y(k)]-\left[x_r(k), y_r(k)\right]\right\|_2.$
+
+\subsection{Simulation Results}\label{sec:sim-results}
+
+The proposed imitation learning policy is compared against NMPC baselines with prediction horizons $N=2$ and $N=5$ (both feasible at RTF$=1.0$), the expert NMPC with $N=20$ (feasible at RTF$=0.1$), and LMPC baselines with prediction horizons $N=7$ and $N=20$ (both feasible at RTF$=1.0$) on the simulator with $Q = \text{diag}(14.25,\, 14.25,\, 1.25)$ and $R = \text{diag}(0.74,\, 0.14)$ solved using \texttt{quadprog}.
+%
+The simulation results are presented in Fig.~\ref{fig:results_simulation}, and the quantitative comparison of tracking error indices and the Average Computation Time (ACT) taken by each method is reported is summarized in Tab.~\ref{tab:position_error_simulation}.
+
+
+\begin{figure*}
+  \centering
+  \includegraphics[width=0.99\textwidth]{Figure/trajectory_plot_simulation_with_klancar.eps}
+  % \includegraphics[width=1\textwidth]{Figure/simulation_results}
+  \caption{Simulation results: (a) performed trajectory, (b) control inputs, (c) position tracking error and orientation tracking error.}
+  \label{fig:results_simulation}
+\end{figure*}
+
+
+\begin{table}[!ht]
+  \centering
+  \caption{Comparison of position tracking error indices - simulation}
+  \label{tab:position_error_simulation}
+  \begin{tabular}{|c|c|c|c|c|}
+    \hline
+    \textbf{Method} & \textbf{MSE$[m^2]$} & \textbf{ISE$[m^2]$} & \textbf{IAE$[m]$} & \textbf{ACT$[sec]$} \\ \hline
+    NMPC $N=2$      & 0.03623 & 1.753  & 8.697 & 0.0925 \\ \hline
+    NMPC $N=5$      & 0.02298 & 1.112  & 5.420 & 0.01625\\ \hline
+    NMPC $N=20$     & 0.00280 & 0.1358 & 0.6322& 0.00617\\ \hline
+    LMPC $N=7$      & 0.02882 & 1.396 & 6.091  &  0.00016 \\ \hline
+    LMPC $N=20$     & 0.007416 & 0.3592 & 2.176& 0.00106   \\ \hline
+    IL (CPU) $N=20$ & 0.00609 & 0.2952 & 1.471 & 0.0009953 \\ \hline
+    IL (GPU) $N=20$ & 0.00609 & 0.2952 & 1.471 & 0.0007974 \\ \hline
+  \end{tabular}
+\end{table}
+
+
+\subsection{Experiment Results}\label{sec:realtime-results}
+\begin{figure*}
+  \centering
+  \includegraphics[width=0.99\textwidth]{Figure/realtime_with_klancar.eps}
+  \caption{Experiment results: (a) performed trajectory, (b) control inputs, (c) position tracking error and orientation tracking error.}
+  \label{fig:results}
+\end{figure*}
+
+
+
+The real-time experimental results are presented in Fig.~\ref{fig:results}, and the quantitative comparison of tracking error indices is summarized in Tab.~\ref{tab:position_error_realtime}.
+The average computation time taken by each method is reported in Tab.~\ref{tab:result_time_realtime}.
+
+\begin{table}[!ht]
+  \centering
+  \caption{Comparison of position tracking error indices - experiments on QBOT platform}
+  \label{tab:position_error_realtime}
+  \begin{tabular}{|c|c|c|c|}
+    \hline
+    \textbf{Method} & \textbf{MSE$[m^2]$} & \textbf{ISE$[m^2]$} & \textbf{IAE$[m]$} \\ \hline
+    LMPC $N=7$      & 0.1058           & 8.4829             & 24.6028           \\ \hline
+    NMPC $N=2$      & 0.0506           & 2.4376             & 10.0803           \\ \hline
+    IL $N=20$ & 0.0169        & 0.8133             & 4.3281            \\ \hline
+  \end{tabular}
+\end{table}
+
+\begin{table}[!ht]
+  \centering
+  \caption{Comparison of average and maximum time taken onboard QBOT platform}
+  \label{tab:result_time_realtime}
+  \begin{tabular}{|c|c|c|}
+    \hline
+    \textbf{Method} & \textbf{Average$[sec]$} & \textbf{Max$[sec]$} \\ \hline
+    LMPC $N=7$            & 0.0159    & 0.1050  \\ \hline
+    NMPC $N=2$               & 0.0163    & 0.0356  \\ \hline
+    IL $N=20$ (CPU) & 0.0013953 & 0.001955 \\ \hline
+    IL $N=20$ (GPU) & 0.0009955 & 0.001394 \\ \hline
+  \end{tabular}
+\end{table}
+
+% \subsection{Results Discussion}
+
+\subsection{Results Discussion}
+The experimental results demonstrate the effectiveness of the proposed imitation learning policy across both tracking accuracy and computational efficiency. In simulation, the learned policy achieves tracking performance comparable to the expert NMPC with $N=20$, confirming successful convergence to the expert behavior.
+
+In real-time experiments on the Quanser QBOT platform, the proposed IL policy substantially outperforms both baselines in position tracking, with orientation tracking performance closely matching that of the NMPC controller while considerably surpassing the LMPC baseline. It is worth noting that both baselines were constrained to shortened prediction horizons to remain feasible for real-time execution, whereas the proposed policy effectively replicates an expert with a significantly longer horizon without incurring the associated online optimization cost. This highlights a key advantage of the imitation learning paradigm: the computational burden of long-horizon planning is absorbed offline during training, rather than at inference time.
+
+These tracking performance are accompanied by a substantial reduction in computation time on both CPU and GPU, with the proposed policy achieving inference times well within the sampling period a margin that neither baseline approaches. This computational efficiency is critical for real-time deployment on resource-constrained embedded hardware, where timely control actions are essential for maintaining stability and closed-loop performance.
+
+The proposed state perturbation augmentation strategy during dataset collection further contributes to the robustness and generalization of the learned policy. This is evidenced by the policy's ability to track trajectories unseen during training, including a circular path and a Lissajous curve, as demonstrated in the supplementary video. Together, these results confirm the practicality of the proposed approach for real-world, resource-constrained robotic deployment.
+
+\section{Conclusion}
+This paper presents a novel imitation learning-based predictive trajectory tracking controller for differential-drive robots. The proposed approach leverages expert demonstrations generated by an expert NMPC controller in a physics-enabled simulation environment to train a deep neural network policy. State perturbation augmentation is introduced during data collection to enhance the diversity of the training dataset and mitigate covariate shift.
+The policy network architecture combines temporal convolutional layers with residual fully connected blocks to effectively capture the dynamics of the robot and the temporal dependencies in the input sequence. A physics-aware loss function is introduced to ensure that the learned policy adheres to the underlying kinematic constraints of the robot, enhancing the realism and reliability of the imitation learning process.
+The effectiveness of the proposed approach is validated through extensive simulation and real-time experiments on the Quanser QBOT differential drive robot platform.
+The results validate the proposed imitation learning policy as an effective and computationally efficient alternative to optimization-based controllers, achieving expert-level tracking in simulation and superior real-time performance on the physical testbed.
+
+\balance
+\bibliographystyle{IEEEtran}
+\bibliography{references}
+\end{document}

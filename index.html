@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>IL Predictive Tracking Controller | IEEE CASE 2026</title>
+    <meta
+      name="description"
+      content="Project page for a real-time affordable predictive trajectory tracking controller for differential drive robots via imitation learning, accepted at IEEE CASE 2026."
+    >
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <nav class="topbar" aria-label="Page navigation">
+      <a href="#abstract">Abstract</a>
+      <a href="#video">Video</a>
+      <a href="#method">Method</a>
+      <a href="#results">Results</a>
+      <a href="#bibtex">BibTeX</a>
+    </nav>
+
+    <main>
+      <section class="hero">
+        <p class="venue">IEEE CASE 2026</p>
+        <h1>A Real-Time Affordable Predictive Trajectory Tracking Controller for Differential Drive Robots via Imitation Learning</h1>
+        <p class="authors">
+          <span>Suryaprakash Rajkumar</span>
+          <span>Walter Lucia</span>
+        </p>
+        <p class="affiliation">Concordia Institute for Information Systems Engineering, Concordia University</p>
+        <div class="links" aria-label="Paper resources">
+          <a href="main_ver6.tex">Paper</a>
+          <a href="https://tinyurl.com/DEMO-IL-NMPC">Video</a>
+          <a href="#bibtex">BibTeX</a>
+        </div>
+      </section>
+
+      <section class="teaser">
+        <img src="assets/realtime-results.png" alt="Real-time QBOT tracking results comparing IL, NMPC, and LMPC controllers">
+        <p>
+          Real-time trajectory tracking on a Quanser QBOT platform. The learned long-horizon imitation policy improves tracking while running comfortably within the onboard sampling period.
+        </p>
+      </section>
+
+      <section id="abstract" class="content-section">
+        <h2>Abstract</h2>
+        <p>
+          Nonlinear Model Predictive Control (NMPC) achieves high-accuracy trajectory tracking for mobile robots but is often too computationally demanding for resource-constrained platforms. We present a learning-based predictive tracking controller that imitates an expert NMPC policy to achieve real-time performance on differential-drive robots.
+        </p>
+        <p>
+          Our approach combines state-perturbation augmentation with relative-error state representations, a lightweight neural architecture using 1-D convolutions and residual blocks, and a physics-aware loss informed by robot kinematics. Expert state-action pairs are collected in a high-fidelity, physics-enabled simulator. The resulting policy is evaluated in real time on a Quanser QBOT differential-drive platform, demonstrating accurate tracking with substantially reduced computation time.
+        </p>
+      </section>
+
+      <section id="video" class="content-section">
+        <h2>Video</h2>
+        <div class="video-card">
+          <a href="https://tinyurl.com/DEMO-IL-NMPC" aria-label="Open supplementary demo video">
+            <img src="assets/qbot-platform.jpg" alt="Quanser QBOT platform used for real-time experiments">
+            <span>Open Supplementary Video</span>
+          </a>
+        </div>
+      </section>
+
+      <section id="method" class="content-section wide">
+        <h2>Method</h2>
+        <div class="media-grid">
+          <figure>
+            <img src="assets/system-architecture.png" alt="Overview of expert rollouts, offline policy training, and real-time deployment">
+            <figcaption>Expert rollouts, offline policy training, and closed-loop real-time deployment.</figcaption>
+          </figure>
+          <figure>
+            <img src="assets/policy-network.png" alt="Policy network architecture with temporal convolution and residual blocks">
+            <figcaption>Temporal convolutional policy network with residual fully connected blocks.</figcaption>
+          </figure>
+        </div>
+        <p>
+          A high-horizon NMPC expert generates state-action demonstrations offline in a physics-enabled digital twin. Pose perturbations broaden the rollout distribution, while a relative-error horizon represents the robot's deviation from the future reference trajectory. At deployment, the trained policy predicts a sequence of controls and applies the first action in receding-horizon fashion.
+        </p>
+      </section>
+
+      <section id="results" class="content-section">
+        <h2>Real-Time Results</h2>
+        <figure class="single-figure">
+          <img src="assets/realtime-results.png" alt="Real-time experiment results on the Quanser QBOT platform">
+          <figcaption>Real-time QBOT experiment: performed trajectory, control inputs, and tracking errors.</figcaption>
+        </figure>
+        <div class="tables">
+          <table>
+            <caption>Position Tracking Error on QBOT Platform</caption>
+            <thead>
+              <tr>
+                <th>Method</th>
+                <th>MSE [m²]</th>
+                <th>ISE [m²]</th>
+                <th>IAE [m]</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td>LMPC N=7</td><td>0.1058</td><td>8.4829</td><td>24.6028</td></tr>
+              <tr><td>NMPC N=2</td><td>0.0506</td><td>2.4376</td><td>10.0803</td></tr>
+              <tr><td>IL N=20</td><td>0.0169</td><td>0.8133</td><td>4.3281</td></tr>
+            </tbody>
+          </table>
+          <table>
+            <caption>Onboard Computation Time</caption>
+            <thead>
+              <tr>
+                <th>Method</th>
+                <th>Average [s]</th>
+                <th>Maximum [s]</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td>LMPC N=7</td><td>0.0159</td><td>0.1050</td></tr>
+              <tr><td>NMPC N=2</td><td>0.0163</td><td>0.0356</td></tr>
+              <tr><td>IL N=20 CPU</td><td>0.0013953</td><td>0.001955</td></tr>
+              <tr><td>IL N=20 GPU</td><td>0.0009955</td><td>0.001394</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="bibtex" class="content-section">
+        <h2>BibTeX</h2>
+        <pre><code>@inproceedings{rajkumar2026ilnmpc,
+  title = {A Real-Time Affordable Predictive Trajectory Tracking Controller for Differential Drive Robots via Imitation Learning},
+  author = {Rajkumar, Suryaprakash and Lucia, Walter},
+  booktitle = {Proceedings of the IEEE International Conference on Automation Science and Engineering (CASE)},
+  year = {2026}
+}</code></pre>
+      </section>
+    </main>
+
+    <footer>
+      <p>
+        This project page follows the simple academic layout style of
+        <a href="https://nerfies.github.io/">Nerfies</a>.
+      </p>
+    </footer>
+  </body>
+</html>
