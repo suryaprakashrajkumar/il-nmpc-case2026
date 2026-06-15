@@ -16,6 +16,7 @@
       <a href="#video">Video</a>
       <a href="#method">Method</a>
       <a href="#results">Results</a>
+      <a href="#funding">Funding</a>
       <a href="#bibtex">BibTeX</a>
     </nav>
 
@@ -24,41 +25,43 @@
         <p class="venue">IEEE CASE 2026</p>
         <h1>A Real-Time Affordable Predictive Trajectory Tracking Controller for Differential Drive Robots via Imitation Learning</h1>
         <p class="authors">
-          <span>Suryaprakash Rajkumar</span>
-          <span>Walter Lucia</span>
+          <a href="https://suryaprakashrajkumar.github.io/">Suryaprakash Rajkumar</a>
+          <a href="https://users.encs.concordia.ca/~wlucia/index.html">Walter Lucia</a>
         </p>
-        <p class="affiliation">Concordia Institute for Information Systems Engineering, Concordia University</p>
+        <p class="affiliation">
+          Concordia Institute for Information Systems Engineering, Concordia University<br>
+          Predictive Cyber-Physical System Security Group (PreCySe)
+        </p>
         <div class="links" aria-label="Paper resources">
-          <a href="main_ver6.tex">Paper</a>
-          <a href="https://tinyurl.com/DEMO-IL-NMPC">Video</a>
+          <a href="https://www.youtube.com/watch?v=T4VOH2IDhcE">Video</a>
+          <a href="https://github.com/PreCyseGroup/IL-NMPC-Controller">Code</a>
           <a href="#bibtex">BibTeX</a>
         </div>
       </section>
 
       <section class="teaser">
-        <img src="assets/realtime-results.png" alt="Real-time QBOT tracking results comparing IL, NMPC, and LMPC controllers">
+        <img src="assets/system-architecture.png" alt="Overview of expert rollouts, offline policy training, and real-time deployment">
         <p>
-          Real-time trajectory tracking on a Quanser QBOT platform. The learned long-horizon imitation policy improves tracking while running comfortably within the onboard sampling period.
+          Expert long-horizon NMPC rollouts are distilled into a lightweight imitation policy for real-time deployment on differential-drive robots.
         </p>
       </section>
 
       <section id="abstract" class="content-section">
         <h2>Abstract</h2>
         <p>
-          Nonlinear Model Predictive Control (NMPC) achieves high-accuracy trajectory tracking for mobile robots but is often too computationally demanding for resource-constrained platforms. We present a learning-based predictive tracking controller that imitates an expert NMPC policy to achieve real-time performance on differential-drive robots.
-        </p>
-        <p>
-          Our approach combines state-perturbation augmentation with relative-error state representations, a lightweight neural architecture using 1-D convolutions and residual blocks, and a physics-aware loss informed by robot kinematics. Expert state-action pairs are collected in a high-fidelity, physics-enabled simulator. The resulting policy is evaluated in real time on a Quanser QBOT differential-drive platform, demonstrating accurate tracking with substantially reduced computation time.
+          Nonlinear Model Predictive Control (NMPC) achieves high-accuracy trajectory tracking for mobile robots but is often too computationally demanding for resource-constrained platforms. We present a learning-based predictive tracking controller that imitates an expert NMPC policy to achieve real-time performance on differential-drive robots. Our approach combines (a) state-perturbation augmentation with relative-error states to enrich the expert dataset and (b) a lightweight neural architecture based on 1-D convolutions with residual blocks and a physics-aware loss informed by robot kinematics. Expert state-action pairs are collected in a high-fidelity, physics-enabled simulator. Finally, we evaluate the resulting policy in a real-time experiment using a Quanser QBOT differential-drive platform, demonstrating tracking accuracy comparable to NMPC while significantly reducing computation time.
         </p>
       </section>
 
       <section id="video" class="content-section">
         <h2>Video</h2>
-        <div class="video-card">
-          <a href="https://tinyurl.com/DEMO-IL-NMPC" aria-label="Open supplementary demo video">
-            <img src="assets/qbot-platform.jpg" alt="Quanser QBOT platform used for real-time experiments">
-            <span>Open Supplementary Video</span>
-          </a>
+        <div class="video-embed">
+          <iframe
+            src="https://www.youtube.com/embed/T4VOH2IDhcE"
+            title="IL-NMPC controller real-time experiment video"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+            allowfullscreen>
+          </iframe>
         </div>
       </section>
 
@@ -66,12 +69,12 @@
         <h2>Method</h2>
         <div class="media-grid">
           <figure>
-            <img src="assets/system-architecture.png" alt="Overview of expert rollouts, offline policy training, and real-time deployment">
-            <figcaption>Expert rollouts, offline policy training, and closed-loop real-time deployment.</figcaption>
-          </figure>
-          <figure>
             <img src="assets/policy-network.png" alt="Policy network architecture with temporal convolution and residual blocks">
             <figcaption>Temporal convolutional policy network with residual fully connected blocks.</figcaption>
+          </figure>
+          <figure>
+            <img src="assets/qbot-platform.jpg" alt="Quanser QBOT platform used for real-time experiments">
+            <figcaption>Quanser QBOT differential-drive platform used for real-time validation.</figcaption>
           </figure>
         </div>
         <p>
@@ -118,6 +121,24 @@
               <tr><td>IL N=20 GPU</td><td>0.0009955</td><td>0.001394</td></tr>
             </tbody>
           </table>
+        </div>
+      </section>
+
+      <section id="funding" class="content-section">
+        <h2>Funding</h2>
+        <p>
+          This work was supported in part by the Natural Sciences and Engineering Research Council of Canada (NSERC), by Fonds de recherche du Québec (FRQNT), and by the National Cybersecurity Consortium (NCC).
+        </p>
+        <div class="logo-row" aria-label="Funding agencies">
+          <a href="https://www.nserc-crsng.gc.ca/" aria-label="Natural Sciences and Engineering Research Council of Canada">
+            <img src="assets/logo-nserc.png" alt="NSERC logo">
+          </a>
+          <a href="https://frq.gouv.qc.ca/en/nature-and-technologies/" aria-label="Fonds de recherche du Québec - Nature et technologies">
+            <img src="assets/logo-frqnt.png" alt="FRQNT logo">
+          </a>
+          <a href="https://ncc-cnc.ca/" aria-label="National Cybersecurity Consortium">
+            <img src="assets/logo-ncc.svg" alt="National Cybersecurity Consortium logo">
+          </a>
         </div>
       </section>
 
