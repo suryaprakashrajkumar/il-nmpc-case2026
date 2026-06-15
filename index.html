@@ -14,7 +14,6 @@
     <nav class="topbar" aria-label="Page navigation">
       <a href="#abstract">Abstract</a>
       <a href="#video">Video</a>
-      <a href="#method">Method</a>
       <a href="#results">Results</a>
       <a href="#funding">Funding</a>
       <a href="#bibtex">BibTeX</a>
@@ -63,23 +62,6 @@
             allowfullscreen>
           </iframe>
         </div>
-      </section>
-
-      <section id="method" class="content-section wide">
-        <h2>Method</h2>
-        <div class="media-grid">
-          <figure>
-            <img src="assets/policy-network.png" alt="Policy network architecture with temporal convolution and residual blocks">
-            <figcaption>Temporal convolutional policy network with residual fully connected blocks.</figcaption>
-          </figure>
-          <figure>
-            <img src="assets/qbot-platform.jpg" alt="Quanser QBOT platform used for real-time experiments">
-            <figcaption>Quanser QBOT differential-drive platform used for real-time validation.</figcaption>
-          </figure>
-        </div>
-        <p>
-          A high-horizon NMPC expert generates state-action demonstrations offline in a physics-enabled digital twin. Pose perturbations broaden the rollout distribution, while a relative-error horizon represents the robot's deviation from the future reference trajectory. At deployment, the trained policy predicts a sequence of controls and applies the first action in receding-horizon fashion.
-        </p>
       </section>
 
       <section id="results" class="content-section">
@@ -138,6 +120,14 @@
           </a>
           <a href="https://ncc-cnc.ca/" aria-label="National Cybersecurity Consortium">
             <img src="assets/logo-ncc.svg" alt="National Cybersecurity Consortium logo">
+          </a>
+          <a href="https://www.concordia.ca/" aria-label="Concordia University">
+            <img src="assets/logo-concordia.png" alt="Concordia University logo">
+          </a>
+          <a class="gina-logo" href="https://www.concordia.ca/ginacody.html" aria-label="Gina Cody School of Engineering and Computer Science">
+            <span>Gina Cody School of</span>
+            <strong>Engineering and Computer Science</strong>
+            <small>Concordia University</small>
           </a>
         </div>
       </section>

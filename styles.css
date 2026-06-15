@@ -188,13 +188,6 @@ h2 {
   border: 0;
 }
 
-.media-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 1rem;
-  margin-bottom: 1.2rem;
-}
-
 figure {
   margin: 0;
 }
@@ -212,7 +205,7 @@ figcaption {
 
 .logo-row {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 1rem;
   align-items: center;
   margin-top: 1.1rem;
@@ -223,9 +216,12 @@ figcaption {
   min-height: 108px;
   align-items: center;
   justify-content: center;
+  flex-direction: column;
   padding: 1rem;
   border: 1px solid var(--line);
   background: #ffffff;
+  color: var(--text);
+  text-align: center;
 }
 
 .logo-row img {
@@ -236,6 +232,24 @@ figcaption {
 
 .logo-row a:nth-child(2) img {
   max-height: 94px;
+}
+
+.logo-row a:nth-child(4) img {
+  max-height: 54px;
+}
+
+.gina-logo span,
+.gina-logo small {
+  color: var(--muted);
+  font-size: 0.8rem;
+  line-height: 1.2;
+}
+
+.gina-logo strong {
+  margin: 0.2rem 0;
+  color: #912338;
+  font-size: 1rem;
+  line-height: 1.15;
 }
 
 .tables {
@@ -293,12 +307,8 @@ footer {
     overflow-x: auto;
   }
 
-  .media-grid {
-    grid-template-columns: 1fr;
-  }
-
   .logo-row {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
@@ -320,5 +330,9 @@ footer {
     display: block;
     overflow-x: auto;
     white-space: nowrap;
+  }
+
+  .logo-row {
+    grid-template-columns: 1fr;
   }
 }
